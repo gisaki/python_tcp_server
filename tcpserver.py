@@ -9,6 +9,7 @@ import threading
 import codecs
 import os
 import csv
+import re
 
 # 
 # 設定（変更必須）
@@ -60,11 +61,21 @@ def handle_client(client_socket, addr):
                         # print(row)
                         # 変換表へ追加（同一のものが手動で登録されていた場合、上書き）
                         recv_send_tbl[ row['rcv'] ] = row['snd']
-
+                        
+            
             # 受信データと送信データの変換
+            # 完全一致を優先、その後、正規表現による置換を試す（正規表現内は順不同）
             if recv_hexstr in recv_send_tbl: 
+                # 完全一致
                 send_hexstr = recv_send_tbl[recv_hexstr]
                 print "Hit table: %s -> %s" % (recv_hexstr, send_hexstr)
+            else: 
+                # 正規表現も許容
+                for key, value in recv_send_tbl.items():
+                    if re.match(r"%s" % key, recv_hexstr):  # rでraw文字列指定しているので、バックスラッシュ等も指定可能
+                        match = re.search(r"%s" % key, recv_hexstr)
+                        send_hexstr = match.expand(r"%s" % value)
+                        print "Match table: %s (pattern %s) -> %s" % (recv_hexstr, key, send_hexstr)
             
             client_socket.send( codecs.decode(send_hexstr, 'hex_codec') ) # 16進数文字列をバイナリに変換して送信
         
