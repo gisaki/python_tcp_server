@@ -7,14 +7,34 @@
 import socket
 import threading
 import codecs
+import os
+import csv
+
+# 
+# 設定（変更必須）
+# 
+bind_port = 34567
+
+# 
+# 設定（変更任意）
+# 
+
+# 受信データに対する送信データの対応表
+recv_send_tbl = {
+    '41':'414243', 
+    '5a':'5a5a5a', 
+}
+
+# 以下は別ファイルにCSVでkey, value（受信データ, 送信データ）を指定する場合のファイル名
+RECV_SEND_TBL_FILEPATH = './recv_send_tbl.csv'
 
 bind_ip = "0.0.0.0" # ANY扱い = すべてのIPアドレスでlisten
-bind_port = 34567
+SERVER_CONNECTION_NUM = 3 # 同時接続可能数
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind((bind_ip, bind_port))
 
-server.listen(3)  ### server while loop
+server.listen(SERVER_CONNECTION_NUM)  ### server while loop
 print "Listening on %s: %d" % (bind_ip, bind_port)
 
 
@@ -29,14 +49,22 @@ def handle_client(client_socket, addr):
             break
         else:
             recv_hexstr = codecs.encode(request, 'hex_codec') # 16進数文字列に変換
-            send_hexstr = '234567'
+            send_hexstr = '73616d706c65' # "sample"
             print "Received: %s" % recv_hexstr
             
-            # 以下は例
-            if recv_hexstr == '3031':
-                send_hexstr = '3030303031313131'
-            elif recv_hexstr == '303132':
-                send_hexstr = '303030303131313132323232'
+            # 以下は別ファイルにCSVでkey, value（受信データ, 送信データ）を指定する例
+            if os.path.isfile(RECV_SEND_TBL_FILEPATH): 
+                with open(RECV_SEND_TBL_FILEPATH, 'r') as f:
+                    reader = csv.DictReader(f, fieldnames=['rcv', 'snd'], )
+                    for row in reader:
+                        # print(row)
+                        # 変換表へ追加（同一のものが手動で登録されていた場合、上書き）
+                        recv_send_tbl[ row['rcv'] ] = row['snd']
+
+            # 受信データと送信データの変換
+            if recv_hexstr in recv_send_tbl: 
+                send_hexstr = recv_send_tbl[recv_hexstr]
+                print "Hit table: %s -> %s" % (recv_hexstr, send_hexstr)
             
             client_socket.send( codecs.decode(send_hexstr, 'hex_codec') ) # 16進数文字列をバイナリに変換して送信
         
